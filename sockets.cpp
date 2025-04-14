@@ -157,7 +157,7 @@ void ServerClientSocket::poll() {
 
 ServerSocket::ServerSocket(int port)
 : PollingSocket(port) {
-	Logging::get_logger()->info("Instantiating socket server...");
+	Logging::get_logger()->info("Instantiating socket server on port " + std::to_string(port) + "...");
 }
 
 ServerSocket::~ServerSocket() {
