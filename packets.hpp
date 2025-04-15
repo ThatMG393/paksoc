@@ -135,6 +135,7 @@ public:
 		byte* padding = static_cast<byte*>(calloc(amount, sizeof(byte)));
 		this->data.insert(this->data.end(), padding, padding + amount);
 
+		free(static_cast<void*>(padding));
 		return this;
 	}
 
