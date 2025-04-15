@@ -36,10 +36,23 @@ private:
 
 	size_t offset;
 
+	bool can_read(size_t length) {
+		if (offset + length > data.size()) {
+			Logging::get_logger()->warning("Attempted to read " + std::to_string(length) + " more bytes, but there's not enough data left!");
+			return false;
+		}
+
+		return true;
+	}
+
 public:
 	Packet(PacketType type) : header({ .type = type, .length = 0 }) { }
 	Packet(PacketType type, const bytearray& data) : header({ .type = type, .length = data.size() }), data(data) { }
 	Packet(const PacketHeader header, const bytearray& data) : header(header), data(data) { }
+	Packet(PacketType type, Serializeable& serializeable) : header({ .type = type, .length = 0 }) {
+		serializeable.serialize(*this);
+		header.length = data.size();
+	}
 
 	void set_offset(size_t offset) {
 		Logging::get_logger()->debug("set_offset(" + std::to_string(offset) + ")");
@@ -56,6 +69,8 @@ public:
 	}
 
 	Packet* read(void* data, size_t read_length) {
+		if (!can_read(read_length)) return this;
+
 		std::memcpy(data, this->data.data() + this->offset, read_length);
 		this->set_offset(this->offset + read_length);
 
@@ -110,6 +125,7 @@ public:
 	}
 
 	Packet* rpad(uint32_t amount) {
+		if (!can_read(amount)) return this;
 		this->set_offset(this->offset + amount);
 		
 		return this;

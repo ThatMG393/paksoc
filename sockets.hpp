@@ -6,6 +6,7 @@
 #include <functional>
 #include <linux/in.h>
 #include <memory>
+#include <mutex>
 #include <sys/socket.h>
 #include <thread>
 #include <unordered_map>
@@ -51,6 +52,10 @@ public:
 	const bool is_socket_closed() {
 		return this->socket_fd < 0;
 	}
+
+	const bool is_connected() {
+		return this->is_socket_ready() && !is_socket_closed();
+	}
 };
 
 class PollingSocket : public BaseSocket {
@@ -89,15 +94,15 @@ private:
 	ServerSocket* parent;
 
 public:
-	ServerClientSocket(
-		ServerSocket* parent,
-		SocketFd client_fd,
-		sockaddr_in client_info
-	) : PollingSocket(client_fd, client_info), parent(parent) {
-		this->is_ready = true;
-	}
+	ServerClientSocket(ServerSocket* parent, SocketFd client_fd, sockaddr_in client_info);
 
 	void init() override;
+
+	void disconnect();
+
+	bool operator==(ServerClientSocket& other) {
+		return this->get_socket_fd() == other.get_socket_fd();
+	}
 
 protected:
 	void poll() override;
@@ -111,10 +116,14 @@ private:
 	std::vector<std::function<void(ServerClientSocket*, Packet)>> packet_listeners;
 	std::unordered_map<PacketType, std::vector<std::function<void(ServerClientSocket*, Packet)>>> specific_packet_listeners;
 
+	std::vector<ServerClientSocket*> pending_client_removal;
+	std::mutex pending_client_removal_lock;
+
 protected:
 	void poll() override;
 
 	void dispatch_packet_event(ServerClientSocket* from, Packet packet);
+	void schedule_client_removal(ServerClientSocket* client);
 
 public:
 	ServerSocket(int port);
@@ -122,7 +131,7 @@ public:
 
 	void init() override;
 
-	void send_data_to_all(bytearray data);
+	void send_packet_to_all(Packet data);
 
 	void on(std::function<void(ServerClientSocket*, Packet)> callback);
 	void on(PacketType type, std::function<void(ServerClientSocket*, Packet)> callback);
@@ -144,10 +153,9 @@ protected:
 
 public:
 	ClientSocket(int port) : PollingSocket(port) { }
-	~ClientSocket() = default;
 
 	void connect(sockaddr_in target_info);
-	void connect();
+	void disconnect();
 
 	void on(std::function<void(Packet)> callback);
 	void on(PacketType type, std::function<void(Packet)> callback);
